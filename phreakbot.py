@@ -11,6 +11,7 @@ from sys import argv, exit, platform
 
 import openai
 from dotenv import load_dotenv
+from langchain import PromptTemplate
 from playwright.sync_api import sync_playwright
 
 load_dotenv()
@@ -153,14 +154,20 @@ The current browser content, objective, and current URL follow. Reply with your 
 
 CURRENT BROWSER CONTENT:
 ------------------
-$browser_content
+{browser_content}
 ------------------
 
-OBJECTIVE: $objective
-CURRENT URL: $url
-PREVIOUS COMMAND: $previous_command
+OBJECTIVE: {objective}
+CURRENT URL: {url}
+PREVIOUS COMMAND: {previous_command}
 YOUR COMMAND:
 """
+
+prompt = PromptTemplate(
+    input_variables=["objective", "url", "previous_command", "browser_content"],
+    template=prompt_template,
+)
+
 
 black_listed_elements = set(
     [
@@ -573,14 +580,15 @@ if __name__ == "__main__":
         )
 
     def get_gpt_command(objective, url, previous_command, browser_content):
-        prompt = prompt_template
-        prompt = prompt.replace("$objective", objective)
-        prompt = prompt.replace("$url", url[:100])
-        prompt = prompt.replace("$previous_command", previous_command)
-        prompt = prompt.replace("$browser_content", browser_content[:4500])
+        api_prompt = prompt.format(
+            objective=objective,
+            url=url[:100],
+            previous_command=previous_command,
+            browser_content=browser_content[:4500],
+        )
         response = openai.Completion.create(
             model="text-davinci-002",
-            prompt=prompt,
+            prompt=api_prompt,
             temperature=0.5,
             best_of=10,
             n=3,
@@ -590,7 +598,6 @@ if __name__ == "__main__":
 
     def run_cmd(cmd):
         cmd = cmd.split("\n")[0]
-
         if cmd.startswith("SCROLL UP"):
             _crawler.scroll("up")
         elif cmd.startswith("SCROLL DOWN"):
@@ -605,12 +612,10 @@ if __name__ == "__main__":
             text = spacesplit[2:]
             text = " ".join(text)
             # Strip leading and trailing double quotes
-            text = text[1:-1]
-
-            if cmd.startswith("TYPESUBMIT"):
-                text += "\n"
+            # text = text[1:-1]
+        if cmd.startswith("TYPESUBMIT"):
+            text += "\n"
             _crawler.type(id, text)
-
         time.sleep(2)
 
     objective = "Make a reservation for 2 at 7pm at bistro vida in menlo park"
@@ -618,7 +623,6 @@ if __name__ == "__main__":
     i = input()
     if len(i) > 0:
         objective = i
-
     gpt_cmd = ""
     prev_cmd = ""
     _crawler.go_to_page("google.com")
