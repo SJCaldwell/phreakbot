@@ -566,6 +566,7 @@ class Crawler:
 
 
 if __name__ == "__main__":
+    DOMAIN = "http://localhost:80"
     _crawler = Crawler()
     openai.api_key = os.environ.get("OPENAI_API_KEY")
 
@@ -585,7 +586,7 @@ if __name__ == "__main__":
         response = openai.Completion.create(
             model="text-davinci-002",
             prompt=api_prompt,
-            temperature=0.5,
+            temperature=1.0,
             best_of=10,
             n=3,
             max_tokens=50,
@@ -593,35 +594,41 @@ if __name__ == "__main__":
         return response.choices[0].text
 
     def run_cmd(cmd):
-        cmd = cmd.split("\n")[0]
-        if cmd.startswith("SCROLL UP"):
-            _crawler.scroll("up")
-        elif cmd.startswith("SCROLL DOWN"):
-            _crawler.scroll("down")
-        elif cmd.startswith("CLICK"):
-            commasplit = cmd.split(",")
-            id = commasplit[0].split(" ")[1]
-            _crawler.click(id)
-        elif cmd.startswith("TYPE"):
-            spacesplit = cmd.split(" ")
-            id = spacesplit[1]
-            text = spacesplit[2:]
-            text = " ".join(text)
-            # Strip leading and trailing double quotes
-            # text = text[1:-1]
-        if cmd.startswith("TYPESUBMIT"):
-            text += "\n"
-            _crawler.type(id, text)
-        time.sleep(2)
+        print("The GPT suggested command is {}".format(cmd))
+        cmds = cmd.split("\n")
+        for cmd in cmds:
+            print("THE TOTAL COMMAND LIST:")
+            print(cmd)
+            if cmd.startswith("SCROLL UP"):
+                _crawler.scroll("up")
+            elif cmd.startswith("SCROLL DOWN"):
+                _crawler.scroll("down")
+            elif cmd.startswith("CLICK"):
+                commasplit = cmd.split(",")
+                id = commasplit[0].split(" ")[1]
+                _crawler.click(id)
+            elif cmd.startswith("TYPE"):
+                spacesplit = cmd.split(" ")
+                id = spacesplit[1]
+                text = spacesplit[2:]
+                text = " ".join(text)
+                # Strip leading and trailing double quotes
+                text = text[1:-1]
+                if cmd.startswith("TYPESUBMIT"):
+                    text += "\n"
+                _crawler.type(id, text)
+            elif cmd.startswith("RETURN DOMAIN"):
+                _crawler.go_to_page(DOMAIN)
+            time.sleep(2)
 
-    objective = "Make a reservation for 2 at 7pm at bistro vida in menlo park"
-    print("\nWelcome to natbot! What is your objective?")
+    objective = "achieve stored XSS after logging in to the application with default credentials"
+    print("\nWelcome to phreakbot! What is your objective?")
     i = input()
     if len(i) > 0:
         objective = i
     gpt_cmd = ""
     prev_cmd = ""
-    _crawler.go_to_page("google.com")
+    _crawler.go_to_page(DOMAIN)
     try:
         while True:
             browser_content = "\n".join(_crawler.crawl())
