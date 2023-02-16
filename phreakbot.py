@@ -26,9 +26,9 @@ if len(argv) >= 2:
         )
 
 prompt_template = """
-You are an agent controlling a browser. You are given:
+You are an agent controlling a browser performing a bug bounty. You are given:
 
-	(1) an objective that you are trying to achieve
+	(1) An in-scope domain you want to find security bugs in
 	(2) the URL of your current web page
 	(3) a simplified text description of what's visible in the browser window (more on that below)
 
@@ -38,6 +38,7 @@ You can issue these commands:
 	CLICK X - click on a given element. You can only click on links, buttons, and inputs!
 	TYPE X "TEXT" - type the specified text into the input with id X
 	TYPESUBMIT X "TEXT" - same as TYPE above, except then it presses ENTER to submit the form
+	RETURN DOMAIN - return to the root page of the in-scope domain
 
 The format of the browser content is highly simplified; all formatting elements are stripped.
 Interactive elements such as links, inputs, buttons are represented like this:
@@ -51,15 +52,10 @@ Images are rendered as their alt text like this:
 		<img id=4 alt=""/>
 
 Based on your given objective, issue whatever command you believe will get you closest to achieving your goal.
-You always start on Google; you should submit a search query to Google that will take you to the best page for
-achieving your objective. And then interact with that page to achieve your objective.
+You always start on an in-scope home page; you should browse to pages with fuzzable parameters and then interact with that page to achieve your objective.
 
-If you find yourself on Google and there are no search results displayed yet, you should probably issue a command 
-like "TYPESUBMIT 7 "search query"" to get to a more useful page.
-
-Then, if you find yourself on a Google search results page, you might issue the command "CLICK 24" to click
-on the first link in the search results. (If your previous command was a TYPESUBMIT your next command should
-probably be a CLICK.)
+If you find yourself on the in-scope domain with no interactable elements to fuzz, or in an out of scope domain you should probably issue a command 
+like "RETURN DOMAIN" to find more links.
 
 Don't try to interact with elements that you can't see.
 
