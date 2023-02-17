@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 from langchain import PromptTemplate
 from playwright.sync_api import sync_playwright
 
+from fuzzer import fuzz_prompt, vuln_recog_prompt
+
 load_dotenv()
 
 quiet = False

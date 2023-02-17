@@ -1,3 +1,5 @@
+from langchain import PromptTemplate
+
 fuzz_template = """
 You are a proxy fuzzing http requests for a bug bounty. You are given:
     (1) the route being fuzzed
@@ -28,8 +30,14 @@ YOUR FUZZING PAYLOADS: ' OR '1,' OR 1 -- -," OR "" = "," OR 1 = 1 -- -,' OR '' =
 ROUTE BEING FUZZED: {route}
 parameter: {parameter}
 value: {value}
+target attack: {target_attack}
 YOUR FUZZING PAYLOADS:
 """
+
+fuzz_prompt = PromptTemplate(
+    input_variables=["route", "parameter", "value", "target_attack"],
+    template=fuzz_template,
+)
 
 vuln_recognition_template = """
 You are a proxy checking http responses for vulnerabilities. You are given:
@@ -40,3 +48,8 @@ You are a proxy checking http responses for vulnerabilities. You are given:
 (4) the response that was received
 
 """
+
+vuln_recog_prompt = PromptTemplate(
+    input_variables=["tech_stack", "parameter", "payload", "response"],
+    template=vuln_recognition_template,
+)
