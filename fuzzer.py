@@ -46,7 +46,10 @@ You are a proxy checking http responses for vulnerabilities. You are given:
 (2) the parameter that was fuzzed
 (3) the payload that was sent
 (4) the response that was received
-
+{tech_stack}
+{parameter}
+{payload}
+{response}
 """
 
 vuln_recog_prompt = PromptTemplate(

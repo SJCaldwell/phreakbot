@@ -12,7 +12,7 @@ from sys import argv, exit, platform
 import openai
 from dotenv import load_dotenv
 from langchain import PromptTemplate
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import Route, sync_playwright
 
 from fuzzer import fuzz_prompt, vuln_recog_prompt
 
@@ -177,6 +177,13 @@ black_listed_elements = set(
 )
 
 
+def fuzz_injector(r: Route):
+    """has to return the request i think"""
+    print(f"fuzzing request to: {r.request.url}")
+    headers = r.request.all_headers()
+    r.continue_(headers=headers)
+
+
 class Crawler:
     def __init__(self):
         self.browser = (
@@ -188,6 +195,7 @@ class Crawler:
         )
 
         self.page = self.browser.new_page()
+        # self.page.route("**", fuzz_injector)
         self.page.set_viewport_size({"width": 1280, "height": 1080})
 
     def go_to_page(self, url):
