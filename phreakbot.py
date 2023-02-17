@@ -178,7 +178,7 @@ black_listed_elements = set(
 
 
 def fuzz_injector(r: Route):
-    """has to return the request i think"""
+    """TODO: this currently breaks the browser, need to figure out how to do this properly"""
     print(f"fuzzing request to: {r.request.url}")
     headers = r.request.all_headers()
     r.continue_(headers=headers)
@@ -190,6 +190,11 @@ class Crawler:
             sync_playwright()
             .start()
             .chromium.launch(
+                proxy={
+                    "server": "http://localhost:8181",
+                    "username": "",
+                    "password": "",
+                },
                 headless=False,
             )
         )
@@ -625,6 +630,7 @@ if __name__ == "__main__":
 
     objective = "login to the application with default credentials, then submit as many forms as possible"
     print("\nWelcome to phreakbot! What is your objective?")
+    print(f'The current default objective is: "{objective}"')
     i = input()
     if len(i) > 0:
         objective = i
