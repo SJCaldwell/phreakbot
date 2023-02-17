@@ -25,7 +25,7 @@ if len(argv) >= 2:
             + "exercise caution when running suggested commands."
         )
 
-prompt_template = """
+browse_template = """
 You are an agent controlling a browser performing a bug bounty. You are given:
 
 	(1) An in-scope domain you want to find security bugs in
@@ -65,29 +65,21 @@ EXAMPLE 1:
 ==================================================
 CURRENT BROWSER CONTENT:
 ------------------
-<link id=1>About</link>
-<link id=2>Store</link>
-<link id=3>Gmail</link>
-<link id=4>Images</link>
-<link id=5>(Google apps)</link>
-<link id=6>Sign in</link>
-<img id=7 alt="(Google)"/>
-<input id=8 alt="Search"></input>
-<button id=9>(Search by voice)</button>
-<button id=10>(Google Search)</button>
-<button id=11>(I'm Feeling Lucky)</button>
-<link id=12>Advertising</link>
-<link id=13>Business</link>
-<link id=14>How Search works</link>
-<link id=15>Carbon neutral since 2007</link>
-<link id=16>Privacy</link>
-<link id=17>Terms</link>
-<text id=18>Settings</text>
+<img id=0/>
+<text id=1>Username</text>
+<input id=2 text/>
+<text id=3>Password</text>
+<input id=4 password/>
+<link id=5>Carbon neutral since 2007</link>
+<link id=6>Privacy</link>
+<link id=7>Terms</link>
+<text id=8>Settings</text>
 ------------------
-OBJECTIVE: Find a 2 bedroom house for sale in Anchorage AK for under $750k
-CURRENT URL: https://www.google.com/
+OBJECTIVE: Login with credentials user:password
+CURRENT URL: https://www.dvwa.com/
 YOUR COMMAND: 
-TYPESUBMIT 8 "anchorage redfin"
+TYPES 2 "user"
+TYPESUBMIT 4 "password"
 ==================================================
 
 EXAMPLE 2:
@@ -159,9 +151,9 @@ PREVIOUS COMMAND: {previous_command}
 YOUR COMMAND:
 """
 
-prompt = PromptTemplate(
+browse_prompt = PromptTemplate(
     input_variables=["objective", "url", "previous_command", "browser_content"],
-    template=prompt_template,
+    template=browse_template,
 )
 
 
@@ -577,7 +569,7 @@ if __name__ == "__main__":
         )
 
     def get_gpt_command(objective, url, previous_command, browser_content):
-        api_prompt = prompt.format(
+        api_prompt = browse_prompt.format(
             objective=objective,
             url=url[:100],
             previous_command=previous_command,
@@ -621,7 +613,7 @@ if __name__ == "__main__":
                 _crawler.go_to_page(DOMAIN)
             time.sleep(2)
 
-    objective = "achieve stored XSS after logging in to the application with default credentials"
+    objective = "login to the application with default credentials, then submit as many forms as possible"
     print("\nWelcome to phreakbot! What is your objective?")
     i = input()
     if len(i) > 0:
