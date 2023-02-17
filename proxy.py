@@ -83,7 +83,9 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
             # hope it's a post
             data = urllib.parse.urlencode(body).encode()
             with urllib.request.urlopen(path, data=data) as response:
+                # TODO: https://docs.python.org/3/library/urllib.request.html do it the right way
                 content = response.read()
+                print(content)
                 return ProxyResponse(response.status, response.headers, content)
 
 
