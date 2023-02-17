@@ -1,37 +1,49 @@
 import base64
 import http.server
 import socketserver
+import urllib.parse
 import urllib.request
+from cgi import parse_header, parse_multipart
+from urllib.parse import parse_qs
 
 
 class ProxyHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        print("TIME TO GET")
         self.proxy_request()
 
     def do_POST(self):
-        self.proxy_request()
+        post_vars = self.parse_POST()
+        self.proxy_request(post_vars=post_vars)
+
+    def parse_POST(self):
+        ctype, pdict = parse_header(self.headers["content-type"])
+        if ctype == "multipart/form-data":
+            postvars = parse_multipart(self.rfile, pdict)
+        elif ctype == "application/x-www-form-urlencoded":
+            length = int(self.headers["content-length"])
+            postvars = parse_qs(self.rfile.read(length), keep_blank_values=1)
+        else:
+            postvars = {}
+        return postvars
 
     def do_CONNECT(self):
         self.proxy_request()
 
-    def proxy_request(self):
-        print("proxying request")
+    def proxy_request(self, **kwargs):
         # Call the handle method of the parent class to set the path instance variable
         try:
             print(self.raw_requestline)
             parsed = http.server.BaseHTTPRequestHandler.parse_request(self)
-            # http.server.BaseHTTPRequestHandler.handle_one_request(self)
 
             if parsed:
                 print(self.path)
                 print(self.request_version)
                 print(self.command)
 
-            # Edit the response headers here if desired
-            # Example: response.headers['Content-Type'] = 'text/plain'
-
-            # Write the response headers to the client
+            # create the proxy request
+            response = self.make_request(
+                self.path, self.command, kwargs.get("post_vars")
+            )
             self.send_response(response.status)
             for header, value in response.headers.items():
                 self.send_header(header, value)
@@ -61,12 +73,18 @@ class ProxyHandler(http.server.BaseHTTPRequestHandler):
 
         return True
 
-    def make_request(self, req):
+    def make_request(self, path, command, body=None):
         # Make the proxy request
-        print("Making request to", req.path)
-        with urllib.request.urlopen(req) as response:
-            content = response.read()
-            return ProxyResponse(response.status, response.headers, content)
+        if body is None and command == "GET":
+            with urllib.request.urlopen(path) as response:
+                content = response.read()
+                return ProxyResponse(response.status, response.headers, content)
+        elif body is not None and command == "POST":
+            # hope it's a post
+            data = urllib.parse.urlencode(body).encode()
+            with urllib.request.urlopen(path, data=data) as response:
+                content = response.read()
+                return ProxyResponse(response.status, response.headers, content)
 
 
 class ProxyResponse:
