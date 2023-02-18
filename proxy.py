@@ -1,110 +1,126 @@
-import base64
-import http.server
-import socketserver
+#!/usr/bin/env python
+
+import argparse
+import io
+import logging
+import os
+import random
+import sys
+import urllib.error
 import urllib.parse
 import urllib.request
-from cgi import parse_header, parse_multipart
-from urllib.parse import parse_qs
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+logging.basicConfig()
+
+logger = logging.getLogger(__name__)
 
 
-class ProxyHandler(http.server.BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.proxy_request()
+class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
+    def do_HEAD(self):
+        self.do_GET(body=False)
 
-    def do_POST(self):
-        post_vars = self.parse_POST()
-        self.proxy_request(post_vars=post_vars)
-
-    def parse_POST(self):
-        ctype, pdict = parse_header(self.headers["content-type"])
-        if ctype == "multipart/form-data":
-            postvars = parse_multipart(self.rfile, pdict)
-        elif ctype == "application/x-www-form-urlencoded":
-            length = int(self.headers["content-length"])
-            postvars = parse_qs(self.rfile.read(length), keep_blank_values=1)
-        else:
-            postvars = {}
-        return postvars
-
-    def do_CONNECT(self):
-        self.proxy_request()
-
-    def proxy_request(self, **kwargs):
-        # Call the handle method of the parent class to set the path instance variable
+    def do_GET(self, body=True):
+        sent = False
         try:
-            print(self.raw_requestline)
-            parsed = http.server.BaseHTTPRequestHandler.parse_request(self)
+            req = None
+            resp = None
+            sio = io.StringIO()
+            try:
+                hostname = self.headers.get("Host")
+                if not hostname:
+                    hostname = "localhost"
+                print("The hostname is:")
+                print(hostname)
+                url = "http://{}".format(hostname)
+                print(url)
+                req = urllib.request.Request(url=url)
+                sio.write("====BEGIN REQUEST=====\n")
+                sio.write(url)
+                sio.write("\n")
+                sio.write(self.command)
+                sio.write(" ")
+                sio.write(self.path)
+                sio.write(" ")
+                sio.write(self.request_version)
+                sio.write("\n")
+                for line in self.headers:
+                    line_parts = [o.strip() for o in line.split(":", 1)]
+                    print(line_parts)
+                    if len(line_parts) == 2:
+                        if line_parts[0].startswith("X-"):
+                            pass
+                        elif line_parts[0] in ("Connection", "User-Agent"):
+                            pass
+                        else:
+                            sio.write(line)
+                            req.add_header(*line_parts)
+                sio.write("\n")
+                sio.write("====END REQUEST=======\n")
+                logger.error(sio.getvalue())
+                try:
+                    print("req is")
+                    print(req)
+                    print(req.get_full_url())
+                    resp = urllib.request.urlopen(req)
+                except urllib.error.HTTPError as e:
+                    if e.getcode():
+                        resp = e
+                    else:
+                        self.send_error(599, "error proxying: {}".format(str(e)))
+                        sent = True
+                        return
+                self.send_response(resp.getcode())
+                respheaders = resp.info()
+                for line in resp.headers:
+                    line_parts = line.split(":", 1)
+                    if len(line_parts) == 2:
+                        self.send_header(*line_parts)
+                self.end_headers()
+                sent = True
+                if body:
+                    self.wfile.write(resp.read())
+                return
+            finally:
+                if resp:
+                    resp.close()
+                sio.close()
+        except IOError as e:
+            if not sent:
+                self.send_error(404, "error trying to proxy: {}".format(str(e)))
 
-            if parsed:
-                print(self.path)
-                print(self.request_version)
-                print(self.command)
 
-            # create the proxy request
-            response = self.make_request(
-                self.path, self.command, kwargs.get("post_vars")
-            )
-            self.send_response(response.status)
-            for header, value in response.headers.items():
-                self.send_header(header, value)
-            self.end_headers()
-
-            # Edit the response content here if desired
-            # Example: content = response.content.replace(b'foo', b'bar')
-
-            # Write the response content to the client
-            self.wfile.write(response.content)
-        except Exception as e:
-            self.send_error(400, f"Error parsing request: {e}")
-            return
-
-    def authenticate(self, req):
-        # Check for required authentication
-        auth_header = req.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Basic "):
-            self.send_error(401, "Authentication Required")
-            return False
-
-        # Check the username and password
-        auth = base64.b64decode(auth_header[6:]).decode("utf-8").split(":")
-        if auth[0] != "username" or auth[1] != "password":
-            self.send_error(401, "Authentication Failed")
-            return False
-
-        return True
-
-    def make_request(self, path, command, body=None):
-        # Make the proxy request
-        if body is None and command == "GET":
-            with urllib.request.urlopen(path) as response:
-                content = response.read()
-                return ProxyResponse(response.status, response.headers, content)
-        elif body is not None and command == "POST":
-            # hope it's a post
-            data = urllib.parse.urlencode(body).encode()
-            with urllib.request.urlopen(path, data=data) as response:
-                # TODO: https://docs.python.org/3/library/urllib.request.html do it the right way
-                content = response.read()
-                print(content)
-                return ProxyResponse(response.status, response.headers, content)
+def parse_args(argv=sys.argv[1:]):
+    parser = argparse.ArgumentParser(description="Either Proxy or Echo HTTP requests")
+    parser.add_argument(
+        "--port",
+        dest="port",
+        type=int,
+        default=random.randint(20000, 60000),
+        help="serve HTTP requests on specified port (default: random)",
+    )
+    parser.add_argument(
+        "--type",
+        dest="server_type",
+        choices=["echo", "proxy"],
+        default="echo",
+        help="Whether to run as a proxy server or echo server",
+    )
+    args = parser.parse_args(argv)
+    return args
 
 
-class ProxyResponse:
-    def __init__(self, status, headers, content):
-        self.status = status
-        self.headers = headers
-        self.content = content
+def main(argv=sys.argv[1:]):
+    args = parse_args(argv)
+    print(("http server is starting on port {}...".format(args.port)))
+    server_address = ("127.0.0.1", args.port)
+    if args.server_type == "proxy":
+        httpd = HTTPServer(server_address, ProxyHTTPRequestHandler)
+    else:
+        httpd = HTTPServer(server_address, EchoHTTPRequestHandler)
+    print(("http server is running as {}...".format(args.server_type)))
+    httpd.serve_forever()
 
 
 if __name__ == "__main__":
-    PORT = 8181
-    Handler = ProxyHandler
-
-    with socketserver.TCPServer(("", PORT), Handler) as httpd:
-        print("serving at port", PORT)
-        try:
-            httpd.serve_forever()
-        except KeyboardInterrupt:
-            print("Shutting down server...")
-            httpd.server_close()
-            print("Server shut down.")
+    main()
