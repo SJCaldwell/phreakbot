@@ -1,4 +1,6 @@
 import argparse
+import http.cookiejar
+import http.cookies
 import io
 import logging
 import os
@@ -38,7 +40,6 @@ urllib.request.install_opener(opener)
 class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
     def send_response(self, code, message=None):
         # this is a proxy, so I don't want it to add headers. i want to inherit all of these headers.
-        print("time to send response")
         self.log_request(code)
         self.send_response_only(code, message)
 
@@ -55,7 +56,7 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 hostname = self.headers.get("Host")
                 if not hostname:
                     hostname = "localhost"
-                url = "http://{}".format(hostname)
+                url = self.path
                 req = urllib.request.Request(url=url)
                 sio.write("====BEGIN REQUEST=====\n")
                 sio.write(url)
@@ -72,9 +73,6 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
 
                     line_parts = [key, value]
                     if len(line_parts) == 2:
-                        if key == "Set-Cookie":
-                            print("found a cookie")
-                            print(value)
                         if line_parts[0].startswith("X-"):
                             pass
                         elif line_parts[0] in ("Connection", "User-Agent"):
@@ -86,27 +84,29 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 sio.write("====END REQUEST=======\n")
                 logger.error(sio.getvalue() + "\n")
                 try:
-                    resp = urllib.request.urlopen(req)
+                    cookie_jar = http.cookiejar.CookieJar()
+                    cookie_processor = urllib.request.HTTPCookieProcessor(cookie_jar)
+                    opener = urllib.request.build_opener(cookie_processor)
+                    resp = opener.open(req)
                 except urllib.error.HTTPError as e:
-                    print("I think I got an error")
-                    print(e.code())
                     if e.getcode():
                         resp = e
                     else:
                         self.send_error(599, "error proxying: {}".format(str(e)))
                         sent = True
                         return
-                print(f"code sent back is {str(resp.getcode())}")
                 self.send_response(resp.getcode())
                 headers = resp.getheaders()
                 for header in headers:
                     name, value = header
                     self.send_header(keyword=name, value=value)
                 # cookie?
-                set_cookie_header = resp.getheader("Set-Cookie")
-                if set_cookie_header:
-                    self.send_header("Set-Cookie", set_cookie_header)
-
+                for cookie in cookie_jar:
+                    c = http.cookies.SimpleCookie()
+                    c.load(cookie)
+                    header = c.output(header="").lstrip()
+                    set_message, val = header.split(":")
+                    self.send_header("Set-Cookie", val)
                 self.end_headers()
                 sent = True
                 if body:
@@ -131,6 +131,7 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 if not hostname:
                     hostname = "localhost"
                 url = "http://{}".format(hostname)
+                url = self.path
                 req = urllib.request.Request(url=url, method="POST")
                 sio.write("====BEGIN REQUEST=====\n")
                 sio.write(url)
@@ -144,7 +145,6 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 for line in self.headers:
                     key = line
                     value = self.headers.get(key)
-                    print(f"{key}={value}")
                     line_parts = [key, value]
                     if len(line_parts) == 2:
                         if line_parts[0].startswith("X-"):
@@ -162,9 +162,10 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 logger.error(sio.getvalue() + "\n")
                 logger.error("No real error\n")
                 try:
-                    resp = urllib.request.urlopen(req, request_body)
-                    print(f"code sent back is {str(resp.getcode())}")
-
+                    cookie_jar = http.cookiejar.CookieJar()
+                    cookie_processor = urllib.request.HTTPCookieProcessor(cookie_jar)
+                    opener = urllib.request.build_opener(cookie_processor)
+                    resp = opener.open(req, request_body)
                 except urllib.error.HTTPError as e:
                     if e.getcode():
                         resp = e
@@ -176,8 +177,14 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 headers = resp.getheaders()
                 for header in headers:
                     name, value = header
-                    print(f"HEADER BEING WRITTEN TO BE SENT TO CLIENT: {name}: {value}")
                     self.send_header(keyword=name, value=value)
+                # cookie?
+                for cookie in cookie_jar:
+                    c = http.cookies.SimpleCookie()
+                    c.load(cookie)
+                    header = c.output(header="").lstrip()
+                    set_message, val = header.split(":")
+                    self.send_header("Set-Cookie", val)
                 self.end_headers()
                 sent = True
                 if body:
