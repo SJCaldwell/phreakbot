@@ -102,11 +102,14 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                     self.send_header(keyword=name, value=value)
                 # cookie?
                 for cookie in cookie_jar:
-                    c = http.cookies.SimpleCookie()
-                    c.load(cookie)
-                    header = c.output(header="").lstrip()
-                    set_message, val = header.split(":")
-                    self.send_header("Set-Cookie", val)
+                    try:
+                        c = http.cookies.SimpleCookie()
+                        c.load(cookie)
+                        header = c.output(header="").lstrip()
+                        set_message, val = header.split(":")
+                        self.send_header("Set-Cookie", val)
+                    except AttributeError as e:
+                        pass
                 self.end_headers()
                 sent = True
                 if body:
@@ -180,11 +183,14 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                     self.send_header(keyword=name, value=value)
                 # cookie?
                 for cookie in cookie_jar:
-                    c = http.cookies.SimpleCookie()
-                    c.load(cookie)
-                    header = c.output(header="").lstrip()
-                    set_message, val = header.split(":")
-                    self.send_header("Set-Cookie", val)
+                    try:
+                        c = http.cookies.SimpleCookie()
+                        c.load(cookie)
+                        header = c.output(header="").lstrip()
+                        set_message, val = header.split(":")
+                        self.send_header("Set-Cookie", val)
+                    except AttributeError as e:
+                        pass
                 self.end_headers()
                 sent = True
                 if body:
