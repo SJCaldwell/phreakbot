@@ -7,6 +7,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+import urllib.response
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 logging.basicConfig()
@@ -15,10 +16,19 @@ logger = logging.getLogger(__name__)
 
 
 class PassThroughRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        print(code)
-        print(req)
-        return req
+    # alternative handler
+    def http_error_300(self, req, fp, code, msg, header_list):
+        data = urllib.response.addinfourl(fp, header_list, req.get_full_url())
+        data.status = code
+        data.code = code
+
+        return data
+
+    # setup aliases
+    http_error_301 = http_error_300
+    http_error_302 = http_error_300
+    http_error_303 = http_error_300
+    http_error_307 = http_error_300
 
 
 opener = urllib.request.build_opener(PassThroughRedirectHandler)
@@ -26,6 +36,12 @@ urllib.request.install_opener(opener)
 
 
 class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
+    def send_response(self, code, message=None):
+        # this is a proxy, so I don't want it to add headers. i want to inherit all of these headers.
+        print("time to send response")
+        self.log_request(code)
+        self.send_response_only(code, message)
+
     def do_HEAD(self):
         self.do_GET(body=False)
 
@@ -56,6 +72,9 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
 
                     line_parts = [key, value]
                     if len(line_parts) == 2:
+                        if key == "Set-Cookie":
+                            print("found a cookie")
+                            print(value)
                         if line_parts[0].startswith("X-"):
                             pass
                         elif line_parts[0] in ("Connection", "User-Agent"):
@@ -69,17 +88,25 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 try:
                     resp = urllib.request.urlopen(req)
                 except urllib.error.HTTPError as e:
+                    print("I think I got an error")
+                    print(e.code())
                     if e.getcode():
                         resp = e
                     else:
                         self.send_error(599, "error proxying: {}".format(str(e)))
                         sent = True
                         return
+                print(f"code sent back is {str(resp.getcode())}")
                 self.send_response(resp.getcode())
                 headers = resp.getheaders()
                 for header in headers:
                     name, value = header
                     self.send_header(keyword=name, value=value)
+                # cookie?
+                set_cookie_header = resp.getheader("Set-Cookie")
+                if set_cookie_header:
+                    self.send_header("Set-Cookie", set_cookie_header)
+
                 self.end_headers()
                 sent = True
                 if body:
@@ -136,9 +163,8 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 logger.error("No real error\n")
                 try:
                     resp = urllib.request.urlopen(req, request_body)
-                    cmon = req.get_method()
-                    print(req.headers)
-                    print(f"METHOD WAS {cmon}")
+                    print(f"code sent back is {str(resp.getcode())}")
+
                 except urllib.error.HTTPError as e:
                     if e.getcode():
                         resp = e
