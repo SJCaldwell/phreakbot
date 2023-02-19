@@ -14,6 +14,17 @@ logging.basicConfig()
 logger = logging.getLogger(__name__)
 
 
+class PassThroughRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        print(code)
+        print(req)
+        return req
+
+
+opener = urllib.request.build_opener(PassThroughRedirectHandler)
+urllib.request.install_opener(opener)
+
+
 class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_HEAD(self):
         self.do_GET(body=False)
@@ -39,14 +50,11 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 sio.write(" ")
                 sio.write(self.request_version)
                 sio.write("\n")
-                print("TRYING TO SEND HEADERS")
-                print(self.headers)
                 for line in self.headers:
                     key = line
                     value = self.headers.get(key)
 
                     line_parts = [key, value]
-                    print(f"GET REQUEST HEADER: {line}")
                     if len(line_parts) == 2:
                         if line_parts[0].startswith("X-"):
                             pass
@@ -71,7 +79,6 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 headers = resp.getheaders()
                 for header in headers:
                     name, value = header
-                    print(f"HEADER BEING WRITTEN TO BE SENT TO CLIENT: {name}: {value}")
                     self.send_header(keyword=name, value=value)
                 self.end_headers()
                 sent = True
@@ -97,7 +104,7 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 if not hostname:
                     hostname = "localhost"
                 url = "http://{}".format(hostname)
-                req = urllib.request.Request(url=url)
+                req = urllib.request.Request(url=url, method="POST")
                 sio.write("====BEGIN REQUEST=====\n")
                 sio.write(url)
                 sio.write("\n")
@@ -110,7 +117,7 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 for line in self.headers:
                     key = line
                     value = self.headers.get(key)
-                    print(f"HEADER BEING WRITTEN TO BE SENT TO TARGET: {key}")
+                    print(f"{key}={value}")
                     line_parts = [key, value]
                     if len(line_parts) == 2:
                         if line_parts[0].startswith("X-"):
@@ -120,12 +127,18 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                         else:
                             sio.write(line)
                             req.add_header(key=key, val=value)
+                content_length = int(self.headers.get("Content-Length", 0))
+                # Read the request body from the socket
+                request_body = self.rfile.read(content_length)
                 sio.write("\n")
                 sio.write("====END REQUEST=======\n")
                 logger.error(sio.getvalue() + "\n")
                 logger.error("No real error\n")
                 try:
-                    resp = urllib.request.urlopen(req)
+                    resp = urllib.request.urlopen(req, request_body)
+                    cmon = req.get_method()
+                    print(req.headers)
+                    print(f"METHOD WAS {cmon}")
                 except urllib.error.HTTPError as e:
                     if e.getcode():
                         resp = e
