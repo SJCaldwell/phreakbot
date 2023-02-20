@@ -177,13 +177,6 @@ black_listed_elements = set(
 )
 
 
-def fuzz_injector(r: Route):
-    """TODO: this currently breaks the browser, need to figure out how to do this properly"""
-    print(f"fuzzing request to: {r.request.url}")
-    headers = r.request.all_headers()
-    r.continue_(headers=headers)
-
-
 class Crawler:
     def __init__(self):
         self.browser = (
@@ -200,7 +193,6 @@ class Crawler:
         )
 
         self.page = self.browser.new_page()
-        # self.page.route("**", fuzz_injector)
         self.page.set_viewport_size({"width": 1280, "height": 1080})
 
     def go_to_page(self, url):

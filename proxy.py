@@ -104,12 +104,18 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 for cookie in cookie_jar:
                     try:
                         c = http.cookies.SimpleCookie()
-                        c.load(cookie)
+                        c[cookie.name] = cookie.value
+                        for attr in ["path", "expires", "secure"]:
+                            value = getattr(cookie, attr, None)
+                            if value is not None:
+                                c[cookie.name][attr] = value
                         header = c.output(header="").lstrip()
-                        set_message, val = header.split(":")
-                        self.send_header("Set-Cookie", val)
+                        print(header)
+                        self.send_header("Set-Cookie", header)
                     except AttributeError as e:
-                        pass
+                        print("WE GOT A COOKIE ERROR GET")
+                        print(cookie)
+                        print(e)
                 self.end_headers()
                 sent = True
                 if body:
@@ -158,6 +164,7 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                             sio.write(f"{key}={value}")
                             sio.write("\n")
                             req.add_header(key=key, val=value)
+                req.add_header(key="pragma", val="no-cache")
                 content_length = int(self.headers.get("Content-Length", 0))
                 # Read the request body from the socket
                 request_body = self.rfile.read(content_length)
@@ -187,12 +194,18 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                 for cookie in cookie_jar:
                     try:
                         c = http.cookies.SimpleCookie()
-                        c.load(cookie)
+                        c[cookie.name] = cookie.value
+                        for attr in ["domain", "path", "expires", "secure"]:
+                            value = getattr(cookie, attr, None)
+                            if value is not None:
+                                c[cookie.name][attr] = value
                         header = c.output(header="").lstrip()
-                        set_message, val = header.split(":")
-                        self.send_header("Set-Cookie", val)
+                        print(header)
+                        self.send_header("Set-Cookie", header)
                     except AttributeError as e:
-                        pass
+                        print("WE GOT A COOKIE ERROR POST")
+                        print(cookie)
+                        print(e)
                 self.end_headers()
                 sent = True
                 if body:
