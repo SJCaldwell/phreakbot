@@ -155,11 +155,13 @@ class ProxyHTTPRequestHandler(BaseHTTPRequestHandler):
                         elif line_parts[0] in ("Connection", "User-Agent"):
                             pass
                         else:
-                            sio.write(line)
+                            sio.write(f"{key}={value}")
+                            sio.write("\n")
                             req.add_header(key=key, val=value)
                 content_length = int(self.headers.get("Content-Length", 0))
                 # Read the request body from the socket
                 request_body = self.rfile.read(content_length)
+                sio.write(request_body.decode("utf-8"))
                 sio.write("\n")
                 sio.write("====END REQUEST=======\n")
                 logger.error(sio.getvalue() + "\n")
