@@ -28,11 +28,12 @@ if len(argv) >= 2:
         )
 
 browse_template = """
-You are an agent controlling a browser performing a bug bounty. You are given:
+You are an agent controlling a browser performing a bug bounty. You are given four things:
 
 	(1) An in-scope domain you want to find security bugs in
 	(2) the URL of your current web page
 	(3) a simplified text description of what's visible in the browser window (more on that below)
+    (4) optionally, credentials to the in-scope domain in the form username:password
 
 You can issue these commands:
 	SCROLL UP - scroll up one page
@@ -53,11 +54,11 @@ Images are rendered as their alt text like this:
 
 		<img id=4 alt=""/>
 
-Based on your given objective, issue whatever command you believe will get you closest to achieving your goal.
-You always start on an in-scope home page; you should browse to pages with fuzzable parameters and then interact with that page to achieve your objective.
+Your objective is to find forms to submit payloads to. Issue whatever command you believe will get you closest to achieving your objective.
+You always start on an in-scope home page; you should browse to pages with fuzzable parameters and then interact with that page to achieve your objective. If
+you are at a page with only links, browse to one of those links to find new forms.
 
-If you find yourself on the in-scope domain with no interactable elements to fuzz, or in an out of scope domain you should probably issue a command 
-like "RETURN DOMAIN" to find more links.
+If you find yourself in an out of scope domain you should probably issue a command like "RETURN DOMAIN" and then find more links.
 
 Don't try to interact with elements that you can't see.
 
@@ -77,10 +78,11 @@ CURRENT BROWSER CONTENT:
 <link id=7>Terms</link>
 <text id=8>Settings</text>
 ------------------
-OBJECTIVE: Login with credentials user:password
+SCOPED DOMAIN: https://www.dvwa.com/
 CURRENT URL: https://www.dvwa.com/
+CREDENTIALS: user:password
 YOUR COMMAND: 
-TYPES 2 "user"
+TYPE 2 "user"
 TYPESUBMIT 4 "password"
 ==================================================
 
@@ -88,29 +90,20 @@ EXAMPLE 2:
 ==================================================
 CURRENT BROWSER CONTENT:
 ------------------
-<link id=1>About</link>
-<link id=2>Store</link>
-<link id=3>Gmail</link>
-<link id=4>Images</link>
-<link id=5>(Google apps)</link>
-<link id=6>Sign in</link>
-<img id=7 alt="(Google)"/>
-<input id=8 alt="Search"></input>
-<button id=9>(Search by voice)</button>
-<button id=10>(Google Search)</button>
-<button id=11>(I'm Feeling Lucky)</button>
-<link id=12>Advertising</link>
-<link id=13>Business</link>
-<link id=14>How Search works</link>
-<link id=15>Carbon neutral since 2007</link>
-<link id=16>Privacy</link>
-<link id=17>Terms</link>
-<text id=18>Settings</text>
+<img id=0 Web App Homepage/>
+<link id=1>Home</link>
+<link id=2>Forum</link>
+<link id=3>About</link>
+<link id=4>Write Blog</link>
+<link id=5>Browse Images</link>
+<link id=6>Terms of Service</link>
+<link id=7>Contact Me</link>
 ------------------
-OBJECTIVE: Make a reservation for 4 at Dorsia at 8pm
-CURRENT URL: https://www.google.com/
+SCOPED DOMAIN: http://localhost:8080/
+CURRENT URL: http://localhost:8080/index.php
+CREDENTIALS: root:root
 YOUR COMMAND: 
-TYPESUBMIT 8 "dorsia nyc opentable"
+CLICK 2
 ==================================================
 
 EXAMPLE 3:
@@ -124,37 +117,30 @@ CURRENT BROWSER CONTENT:
 <link id=5>OpenTable logo</link>
 <button id=6 alt ="search">Search</button>
 <text id=7>Find your table for any occasion</text>
-<button id=8>(Date selector)</button>
-<text id=9>Sep 28, 2022</text>
-<text id=10>7:00 PM</text>
-<text id=11>2 people</text>
-<input id=12 alt="Location, Restaurant, or Cuisine"></input> 
-<button id=13>Let’s go</button>
-<text id=14>It looks like you're in Peninsula. Not correct?</text> 
-<button id=15>Get current location</button>
-<button id=16>Next</button>
 ------------------
-OBJECTIVE: Make a reservation for 4 for dinner at Dorsia in New York City at 8pm
-CURRENT URL: https://www.opentable.com/
+SCOPED DOMAIN: http://www.opentable.com/
+CURRENT URL: http://www.opentable.com/
+CREDENTIALS: johndoe@example.com:password123
 YOUR COMMAND: 
-TYPESUBMIT 12 "dorsia new york city"
+TYPESUBMIT 7 "<script>alert('XSS Test')</script>"
 ==================================================
 
-The current browser content, objective, and current URL follow. Reply with your next command to the browser.
+The current browser content, current URL, credentials, and previous command follow. Reply with your next command to the browser.
 
 CURRENT BROWSER CONTENT:
 ------------------
 {browser_content}
 ------------------
 
-OBJECTIVE: {objective}
+SCOPED DOMAIN: http://localhost
 CURRENT URL: {url}
+CREDENTIALS: admin:password
 PREVIOUS COMMAND: {previous_command}
 YOUR COMMAND:
 """
 
 browse_prompt = PromptTemplate(
-    input_variables=["objective", "url", "previous_command", "browser_content"],
+    input_variables=["url", "previous_command", "browser_content"],
     template=browse_template,
 )
 
@@ -565,7 +551,7 @@ class Crawler:
 
 
 if __name__ == "__main__":
-    DOMAIN = "http://localhost:80"
+    DOMAIN = "http://localhost"
     _crawler = Crawler()
     openai.api_key = os.environ.get("OPENAI_API_KEY")
 
@@ -577,7 +563,6 @@ if __name__ == "__main__":
 
     def get_gpt_command(objective, url, previous_command, browser_content):
         api_prompt = browse_prompt.format(
-            objective=objective,
             url=url[:100],
             previous_command=previous_command,
             browser_content=browser_content[:4500],
