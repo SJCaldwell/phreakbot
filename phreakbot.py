@@ -561,7 +561,7 @@ if __name__ == "__main__":
             + "(h) to view commands again\n(r/enter) to run suggested command\n(o) change objective"
         )
 
-    def get_gpt_command(objective, url, previous_command, browser_content):
+    def get_gpt_command(url, previous_command, browser_content):
         api_prompt = browse_prompt.format(
             url=url[:100],
             previous_command=previous_command,
@@ -605,12 +605,8 @@ if __name__ == "__main__":
                 _crawler.go_to_page(DOMAIN)
             time.sleep(2)
 
-    objective = "login to the application with default credentials, then submit as many forms as possible"
-    print("\nWelcome to phreakbot! What is your objective?")
-    print(f'The current default objective is: "{objective}"')
-    i = input()
-    if len(i) > 0:
-        objective = i
+    print("\nWelcome to phreakbot!")
+    print(f'Pentest beginning on in-scope domain: "{DOMAIN}"')
     gpt_cmd = ""
     prev_cmd = ""
     _crawler.go_to_page(DOMAIN)
@@ -618,14 +614,11 @@ if __name__ == "__main__":
         while True:
             browser_content = "\n".join(_crawler.crawl())
             prev_cmd = gpt_cmd
-            gpt_cmd = get_gpt_command(
-                objective, _crawler.page.url, prev_cmd, browser_content
-            )
+            gpt_cmd = get_gpt_command(_crawler.page.url, prev_cmd, browser_content)
             gpt_cmd = gpt_cmd.strip()
 
             if not quiet:
                 print("URL: " + _crawler.page.url)
-                print("Objective: " + objective)
                 print("----------------\n" + browser_content + "\n----------------\n")
             if len(gpt_cmd) > 0:
                 print("Suggested command: " + gpt_cmd)
@@ -651,8 +644,6 @@ if __name__ == "__main__":
                 text = input("text:")
                 _crawler.type(id, text)
                 time.sleep(1)
-            elif command == "o":
-                objective = input("Objective:")
             else:
                 print_help()
     except KeyboardInterrupt:
